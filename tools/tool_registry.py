@@ -82,7 +82,7 @@ class ToolRegistry(Registry[BaseTool]):
             tool = await self._async_lazy_get_mcp_tool(tool_name)
         
         if tool is None:
-            raise KeyError(f"Item not registered: {tool_name}")
+            raise KeyError(f"Tool not registered: {tool_name}")
         
         schema = tool.get_schema()
         required_params = schema.get("parameters", {}).get("required", [])

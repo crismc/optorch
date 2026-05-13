@@ -249,8 +249,10 @@ class Orchestrator:
             from optorch.llm.fragments.base import Fragment
             self.container.node_controller.prompt_manager.fragment.register(Fragment("tone", tone))
         
-        # set current session in session manager
         self.container.session_manager.set_current_session(state.get(StateKeys.SESSION_ID))
+        
+        from optorch.state.helpers import PersistenceHelper
+        await PersistenceHelper.hydrate(state, self.container.session_manager)
         
         # create context for this execution
         node = entry_node or self.entry_node

@@ -153,14 +153,28 @@ class NodeController:
         if node_config.phase:
             state[StateKeys.CURRENT_PHASE] = node_config.phase
         
+        previous_node_name = None
+        previous_phase = None
+        if context is not None:
+            previous_node_name = getattr(context, "current_node_name", None)
+            previous_phase = getattr(context, "current_phase", None)
+            context.current_node_name = node_name
+            if node_config.phase:
+                context.current_phase = node_config.phase
+        
         routing_context = RoutingContext(current_node=node_name, result=state)
         
-        result = await RetryHandler.execute_with_retry(
-            node, 
-            state, 
-            lambda n, s: self._execute_lifecycle(n, s, context), 
-            node_config.model_dump()
-        )
+        try:
+            result = await RetryHandler.execute_with_retry(
+                node, 
+                state, 
+                lambda n, s: self._execute_lifecycle(n, s, context), 
+                node_config.model_dump()
+            )
+        finally:
+            if context is not None:
+                context.current_node_name = previous_node_name
+                context.current_phase = previous_phase
         
         routing_context.result = result
         routing_context.add_to_history(node_name)

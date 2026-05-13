@@ -258,9 +258,9 @@ class StreamingLLMResponse(LLMResponse):
                 if buffered_result:
                     try:
                         transformed = await transformers[i].transform(buffered_result, context)
-                        content = transformed.get("content", buffered_result)
-                        if "metadata" in transformed:
-                            self._transformer_metadata.update(transformed["metadata"])
+                        content = transformed.content
+                        if transformed.metadata:
+                            self._transformer_metadata.update(transformed.metadata)
                         
                         transformed_content += content
                         yield content
@@ -275,9 +275,9 @@ class StreamingLLMResponse(LLMResponse):
                 elif accumulator.should_passthrough():
                     try:
                         transformed = await transformers[i].transform(chunk, context)
-                        content = transformed.get("content", chunk)
-                        if "metadata" in transformed:
-                            self._transformer_metadata.update(transformed["metadata"])
+                        content = transformed.content
+                        if transformed.metadata:
+                            self._transformer_metadata.update(transformed.metadata)
                         
                         transformed_content += content
                         yield content
@@ -301,7 +301,9 @@ class StreamingLLMResponse(LLMResponse):
             if remaining:
                 try:
                     transformed = await transformers[i].transform(remaining, context)
-                    content = transformed.get("content", remaining)
+                    content = transformed.content
+                    if transformed.metadata:
+                        self._transformer_metadata.update(transformed.metadata)
                     transformed_content += content
                     yield content
                 except Exception as e:

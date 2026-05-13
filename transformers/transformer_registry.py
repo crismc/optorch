@@ -1,6 +1,7 @@
-from typing import Any, Type, TYPE_CHECKING, Dict
+from typing import Type, TYPE_CHECKING
 from optorch.registry import Registry
 from optorch.transformers.base_transformer import BaseTransformer
+from optorch.transformers.transform_result import TransformResult
 
 if TYPE_CHECKING:
     from optorch.llm.lifecycle.context import LLMContext
@@ -25,16 +26,7 @@ class TransformerRegistry:
         """Check if transformer exists"""
         return self._registry.has(name)
     
-    async def apply(self, name: str, content: str, context: 'LLMContext') -> Dict[str, Any]:
-        """Apply a transformer to content
-        
-        Args:
-            name: Transformer name
-            content: Content string to transform
-            context: LLM context for state/events access
-            
-        Returns:
-            Dict with 'content' and optional 'metadata'
-        """
+    async def apply(self, name: str, content: str, context: 'LLMContext') -> TransformResult:
+        """Apply a transformer by name. Returns TransformResult."""
         transformer = self.get(name)
         return await transformer.transform(content, context)

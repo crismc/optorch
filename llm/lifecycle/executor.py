@@ -110,6 +110,7 @@ class LLMLifecycleExecutor:
         from optorch.llm.processors.transformer_pipeline import TransformerPipeline
         from optorch.llm.processors.cost_tracker import CostTracker
         from optorch.llm.processors.usage_logger import UsageLogger
+        from optorch.llm.processors.prompt_registration import PromptRegistration
         
         self.register_processor(MessageBuilder())
         self.register_processor(LLMInvokeProcessor())
@@ -118,6 +119,7 @@ class LLMLifecycleExecutor:
         self.register_processor(TransformerPipeline())
         self.register_processor(CostTracker())
         self.register_processor(UsageLogger())
+        self.register_processor(PromptRegistration())
         
         logger.debug("Registered default processors")
     

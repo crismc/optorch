@@ -1,5 +1,7 @@
 from abc import ABC, abstractmethod
-from typing import Dict, Any, TYPE_CHECKING
+from typing import TYPE_CHECKING
+
+from optorch.transformers.transform_result import TransformResult
 
 if TYPE_CHECKING:
     from optorch.llm.lifecycle.context import LLMContext
@@ -9,7 +11,7 @@ class BaseTransformer(ABC):
     """Base class for content transformers that clean/normalize LLM response text"""
     
     @abstractmethod
-    async def transform(self, content: str, context: 'LLMContext') -> Dict[str, Any]:
+    async def transform(self, content: str, context: 'LLMContext') -> TransformResult:
         """Transform content string.
         
         Args:
@@ -17,6 +19,6 @@ class BaseTransformer(ABC):
             context: Full LLM context for state/events/metadata access
             
         Returns:
-            Dict with 'content' (transformed string) and optional 'metadata' (extracted data)
+            TransformResult with transformed content and optional extracted metadata
         """
         pass

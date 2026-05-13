@@ -109,22 +109,39 @@ class BaseNode(ABC):
         state.set("return_to", self.name)
         return await self._node_context.controller.dispatch(node_name, state, self._node_context)
     
+    async def persist(self, state: BaseState, key: str, value: Any) -> None:
+        """set on state AND save to session backend so it survives the next turn"""
+        from optorch.state.helpers import PersistenceHelper
+        state.set(key, value)
+        assert self._node_context is not None, "NodeContext not set - only accessible during execute()"
+        await PersistenceHelper.save(self._node_context.sessions, key, value)
+    
     async def tool(self, tool_name: str, **kwargs: Any) -> Any:
-        """Execute a registered tool through the registry
-        
-        Args:
-            tool_name: Name of the tool to execute
-            **kwargs: Tool parameters
-            
-        Returns:
-            Tool execution result
+        """Execute a registered tool.
+
+        If the tool is missing or raises, emit a `tool.error` event and
+        return a structured error dict instead of bubbling up. Nodes carry on.
         """
         assert self._node_context is not None, "NodeContext not set - only accessible during execute()"
-        return await self._node_context.controller.tools.registry().execute(
-            tool_name=tool_name, 
-            context=self._node_context,
-            **kwargs
-        )
+        try:
+            return await self._node_context.controller.tools.registry().execute(
+                tool_name=tool_name,
+                context=self._node_context,
+                **kwargs,
+            )
+        except Exception as e:
+            payload = {
+                "tool": tool_name,
+                "node": self.name,
+                "error": str(e),
+                "error_type": type(e).__name__,
+            }
+            try:
+                self._node_context.events.emit("tool.error", payload)
+            except Exception:
+                pass
+            return {"error": str(e), "error_type": type(e).__name__, "tool": tool_name}
+
     
     async def goto(self, node_name: str, state: BaseState) -> BaseState:
         """Go to another node (does not return to current node).

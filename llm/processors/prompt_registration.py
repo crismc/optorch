@@ -24,19 +24,34 @@ class PromptRegistration(BaseLLMProcessor):
         super().__init__()
         self.substates = {"default"}
         self.exclude_substates = {"tool_result", "retry"}
-        self._analytics_url: Optional[str] = None
-        self._enabled = False
-        self._version_strategy = "hash"
     
     @property
     def hook(self) -> LLMLifecycleHook:
         return LLMLifecycleHook.PRE_INVOKE
     
+    def _resolve_config(self, context: LLMContext) -> dict:
+        """pull PromptRegistrationConfig defaults, allow per-call override"""
+        from optorch.llm.config import PromptRegistrationConfig
+        
+        defaults = PromptRegistrationConfig().model_dump()
+        
+        if context.node_context and context.node_context.container:
+            cm = getattr(context.node_context.container, "config_manager", None)
+            if cm is not None:
+                cfg = cm.get("llm.prompt_registration") or cm.get("prompt_registration") or {}
+                if isinstance(cfg, dict):
+                    defaults.update(cfg)
+        
+        override = context.config.get("prompt_registration") or {}
+        if isinstance(override, dict):
+            defaults.update(override)
+        return defaults
+    
     async def process(self, context: LLMContext) -> None:
         """Register prompt if auto-registration enabled"""
-        reg_config = context.config.get("prompt_registration", {})
+        reg_config = self._resolve_config(context)
         
-        if not reg_config.get("auto_register", False):
+        if not reg_config.get("auto_register", True):
             logger.debug("Prompt auto-registration disabled")
             return
         
@@ -44,12 +59,12 @@ class PromptRegistration(BaseLLMProcessor):
             logger.debug("No messages - skipping prompt registration")
             return
         
-        first_message = context.messages[0]
-        if first_message.get("role") != "system":
-            logger.debug("First message not system prompt - skipping registration")
+        system_message = next((m for m in context.messages if m.get("role") == "system"), None)
+        if system_message is None:
+            logger.debug("No system prompt in messages - skipping registration")
             return
         
-        prompt_content = first_message.get("content", "")
+        prompt_content = system_message.get("content", "")
         if not prompt_content:
             logger.debug("Empty system prompt - skipping registration")
             return
@@ -57,11 +72,13 @@ class PromptRegistration(BaseLLMProcessor):
         prompt_name = context.metadata.get("prompt_name")
         if not prompt_name:
             prompt_name = context.config.get("prompt_name")
+        if not prompt_name and context.state is not None:
+            from optorch.constants import StateKeys
+            prompt_name = context.state.get(StateKeys.CURRENT_NODE)
+        if not prompt_name and context.node_context is not None:
+            prompt_name = getattr(context.node_context, "current_node_name", None)
         if not prompt_name:
-            if context.node_context and hasattr(context.node_context, "current_node_name"):
-                prompt_name = context.node_context.current_node_name or "unnamed"
-            else:
-                prompt_name = "unnamed"
+            prompt_name = "unnamed"
         
         version_strategy = reg_config.get("version_strategy", "hash")
         analytics_url = reg_config.get("analytics_url")
@@ -77,6 +94,26 @@ class PromptRegistration(BaseLLMProcessor):
         context.metadata["prompt_name"] = prompt_name
         context.metadata["prompt_version"] = version
         context.processor_data["prompt_registered"] = True
+        
+        storage = None
+        if context.node_context and context.node_context.container:
+            storage = getattr(context.node_context.container, "storage_manager", None)
+        
+        if storage is not None:
+            try:
+                await storage.query(
+                    "prompt.register",
+                    name=prompt_name,
+                    version=version,
+                    template=prompt_content,
+                    variables=None,
+                    description=context.config.get("node_name"),
+                    tags=["auto", version_strategy],
+                )
+                logger.debug(f"Prompt registered (in-process): {prompt_name} v{version}")
+                return
+            except Exception as e:
+                logger.warning(f"In-process prompt register failed, falling back to HTTP: {e}")
         
         await self._register_with_analytics(
             prompt_name=prompt_name,
@@ -120,8 +157,9 @@ class PromptRegistration(BaseLLMProcessor):
                     json={
                         "name": prompt_name,
                         "version": version,
-                        "content": content,
-                        "metadata": metadata
+                        "template": content,
+                        "description": metadata.get("node_name") or None,
+                        "tags": ["auto", metadata.get("version_strategy", "hash")],
                     }
                 )
                 

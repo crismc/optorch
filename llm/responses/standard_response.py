@@ -51,9 +51,9 @@ class StandardLLMResponse(LLMResponse):
         
         for transformer in transformers:
             result = await transformer.transform(content, context)
-            content = result.get("content", content)
-            if "metadata" in result:
-                metadata.update(result["metadata"])
+            content = result.content
+            if result.metadata:
+                metadata.update(result.metadata)
         
         return StandardLLMResponse(
             _content=content,

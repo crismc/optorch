@@ -50,8 +50,6 @@ class BaseState(ABC):
         """Convert to dictionary"""
         pass
     
-
-    
     @property
     @abstractmethod
     def is_streaming(self) -> bool:

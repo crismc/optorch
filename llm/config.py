@@ -216,7 +216,7 @@ class PromptRegistrationConfig(BaseModel):
         description="Version strategy (hash, timestamp, manual)"
     )
     analytics_url: str = Field(
-        default="http://localhost:8001/v1",
+        default="http://localhost:8000/api/v1",
         description="Analytics API base URL"
     )
 

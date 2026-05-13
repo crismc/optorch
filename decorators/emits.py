@@ -54,8 +54,6 @@ def emits(event_prefix: str) -> Callable[[Callable[..., Any]], Callable[..., Any
             pass
     """
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
-        import inspect
-        
         def make_serializable(obj: Any) -> Any:
             if isinstance(obj, State):
                 return {"type": "State"}
@@ -78,19 +76,10 @@ def emits(event_prefix: str) -> Callable[[Callable[..., Any]], Callable[..., Any
         
         @wraps(func)
         async def async_wrapper(*args, **kwargs):
-            from optorch.logging import get_logger
-            logger = get_logger(__name__)
-            
             node_context = extract_context(args, kwargs)
-            
-            logger.error(f"[@emits {event_prefix}] CALLED - node_context={node_context is not None}, args_count={len(args)}")
-            if len(args) > 1:
-                logger.error(f"  args[1] type: {type(args[1]).__name__}, has node_context: {hasattr(args[1], 'node_context') if len(args) > 1 else False}")
-            
             node_name: str | None = None
             if node_context and hasattr(node_context, 'current_node_name'):
                 node_name = node_context.current_node_name
-                logger.error(f"  Extracted node_name: {node_name}")
             
             start_time = time.time()
             
