@@ -25,6 +25,40 @@ def _lookup_session_id(llm_context:'LLMContext') -> str | None:
     return session_id
 
 
+def _lookup_model(args: tuple) -> str | None:
+    """pull model from bound instance .model or from an LLMContext arg"""
+    if not args:
+        return None
+    model = getattr(args[0], 'model', None)
+    if model:
+        return model
+    for a in args:
+        cfg = getattr(a, 'config', None)
+        if isinstance(cfg, dict):
+            m = cfg.get('model')
+            if m:
+                return m
+    return None
+
+
+def _resolve_session_id(context: Any, llm_context: Any) -> str | None:
+    """llm_context > context.state > ambient ContextVar"""
+    if llm_context:
+        sid = _lookup_session_id(llm_context)
+        if sid:
+            return sid
+        
+    state = getattr(context, 'state', None) if context is not None else None
+    
+    if state is not None and hasattr(state, 'get'):
+        sid = state.get('session_id')
+        if sid:
+            return sid
+    
+    from optorch.session.session_manager import _current_session
+    return _current_session.get()
+
+
 @overload
 def emits(event_prefix: str) -> Callable[[Callable[..., Awaitable[T]]], Callable[..., Awaitable[T]]]: ...
 
@@ -54,7 +88,6 @@ def emits(event_prefix: str) -> Callable[[Callable[..., Any]], Callable[..., Any
         @wraps(func)
         async def async_wrapper(*args, **kwargs):
             context = extract_context(args, kwargs)
-            session_id = None
             
             llm_context: Any = None
             if context and hasattr(context, '__class__') and 'LLMContext' in context.__class__.__name__:
@@ -64,12 +97,12 @@ def emits(event_prefix: str) -> Callable[[Callable[..., Any]], Callable[..., Any
                     if hasattr(arg, '__class__') and 'LLMContext' in arg.__class__.__name__:
                         llm_context = arg
                         break
-            
-            if llm_context:
-                session_id = _lookup_session_id(llm_context)
+
+            session_id = _resolve_session_id(context, llm_context)
 
             node_name = context.current_node_name if context and hasattr(context, 'current_node_name') else None
             serializable_kwargs = filter_kwargs(kwargs)
+            model = _lookup_model(args)
             start_time = time.time()
             
             event_data: dict[str, Any] = {"args": serializable_kwargs}
@@ -77,6 +110,8 @@ def emits(event_prefix: str) -> Callable[[Callable[..., Any]], Callable[..., Any
                 event_data["node_name"] = node_name
             if session_id:
                 event_data["session_id"] = session_id
+            if model:
+                event_data["model"] = model
             
             if context and hasattr(context, 'events'):
                 context.events.emit(f"{event_prefix}.start", event_data)
@@ -96,6 +131,9 @@ def emits(event_prefix: str) -> Callable[[Callable[..., Any]], Callable[..., Any
 
                 if session_id:
                     complete_data["session_id"] = session_id
+
+                if model:
+                    complete_data["model"] = model
                 
                 if llm_context and hasattr(llm_context, 'metadata') and llm_context.metadata:
                     complete_data.update({k: v for k, v in llm_context.metadata.items() if k not in complete_data})
@@ -112,6 +150,9 @@ def emits(event_prefix: str) -> Callable[[Callable[..., Any]], Callable[..., Any
                 if session_id:
                     error_data["session_id"] = session_id
 
+                if model:
+                    error_data["model"] = model
+
                 if context and hasattr(context, 'events'):
                     context.events.emit(f"{event_prefix}.error", error_data)
 
@@ -120,7 +161,6 @@ def emits(event_prefix: str) -> Callable[[Callable[..., Any]], Callable[..., Any
         @wraps(func)
         def sync_wrapper(*args, **kwargs):
             context = extract_context(args, kwargs)
-            session_id = None
             
             llm_context: Any = None
             if context and hasattr(context, '__class__') and 'LLMContext' in context.__class__.__name__:
@@ -130,12 +170,12 @@ def emits(event_prefix: str) -> Callable[[Callable[..., Any]], Callable[..., Any
                     if hasattr(arg, '__class__') and 'LLMContext' in arg.__class__.__name__:
                         llm_context = arg
                         break
-            
-            if llm_context:
-                session_id = _lookup_session_id(llm_context)
+
+            session_id = _resolve_session_id(context, llm_context)
 
             node_name = context.current_node_name if context and hasattr(context, 'current_node_name') else None
             serializable_kwargs = filter_kwargs(kwargs)
+            model = _lookup_model(args)
             start_time = time.time()
             
             event_data: dict[str, Any] = {"args": serializable_kwargs}
@@ -143,6 +183,8 @@ def emits(event_prefix: str) -> Callable[[Callable[..., Any]], Callable[..., Any
                 event_data["node_name"] = node_name
             if session_id:
                 event_data["session_id"] = session_id
+            if model:
+                event_data["model"] = model
             
             if context and hasattr(context, 'events'):
                 context.events.emit(f"{event_prefix}.start", event_data)
@@ -162,6 +204,9 @@ def emits(event_prefix: str) -> Callable[[Callable[..., Any]], Callable[..., Any
 
                 if session_id:
                     complete_data["session_id"] = session_id
+
+                if model:
+                    complete_data["model"] = model
                 
                 if llm_context and hasattr(llm_context, 'metadata') and llm_context.metadata:
                     complete_data.update({k: v for k, v in llm_context.metadata.items() if k not in complete_data})
@@ -177,6 +222,9 @@ def emits(event_prefix: str) -> Callable[[Callable[..., Any]], Callable[..., Any
 
                 if session_id:
                     error_data["session_id"] = session_id
+
+                if model:
+                    error_data["model"] = model
 
                 if context and hasattr(context, 'events'):
                     context.events.emit(f"{event_prefix}.error", error_data)

@@ -82,7 +82,30 @@ class EventEmitter:
                 pass
         
         event = {"type": event_type, "timestamp": time.time(), **tenant_ctx, **(data or {})}
-        
+
+        if "organization_id" not in event:
+            try:
+                from optorch.identity.context import IdentityContext
+                org_id = IdentityContext.get_ambient_org_id()
+            except Exception:
+                org_id = None
+
+            if org_id is not None:
+                event["organization_id"] = org_id
+
+        if "session_id" not in event:
+            sid = None
+            if state is not None and hasattr(state, 'get'):
+                sid = state.get('session_id')
+            if not sid:
+                try:
+                    from optorch.session.session_manager import _current_session
+                    sid = _current_session.get()
+                except Exception:
+                    sid = None
+            if sid:
+                event["session_id"] = sid
+
         if node_name and "node_name" not in event:
             event["node_name"] = node_name
         

@@ -6,7 +6,7 @@ from optorch.logging import get_logger
 if TYPE_CHECKING:
     from optorch.mcp.mcp_client import MCPClient
 
-logger = get_logger(__name__)
+logger = get_logger(__name__, component="mcp")
 
 
 class MCPToolAdapter(BaseTool):
@@ -59,8 +59,13 @@ class MCPToolAdapter(BaseTool):
                 return await self._wrapper_fn(self._mcp_client, self._name, kwargs)
             
             result = await self._mcp_client.call_tool(self._name, kwargs)
-            
+
             if isinstance(result, dict):
+                errors = result.get("errors")
+                if isinstance(errors, list):
+                    internal = [e for e in errors if isinstance(e, dict) and e.get("field") == "internal"]
+                    if internal:
+                        logger.warning(f"MCP server '{self._mcp_client.name}' tool '{self._name}' reported errors: {internal}")
                 return {"success": True, **result}
             else:
                 return {"success": True, "result": result}

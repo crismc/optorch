@@ -61,7 +61,11 @@ class StreamingToolExecutor(BaseLLMProcessor):
                     "No controller available in context",
                     details={"has_node_context": bool(context.node_context)}
                 )
-                
+
+            sid = context.state.get('session_id') if context.state else None
+            if sid and context.node_context.sessions:
+                context.node_context.sessions.set_current_session(sid)
+
             tool_registry = context.node_context.controller.tools.registry()
             
             tool_results: List[Dict[str, str]] = []

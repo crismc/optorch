@@ -2,6 +2,7 @@
 from optorch.logging import get_logger
 import json
 import asyncio
+import logging
 import time
 from typing import Any, Dict, List, TYPE_CHECKING
 from mcp import ClientSession
@@ -14,6 +15,37 @@ if TYPE_CHECKING:
     from ..mcp_config import MCPServerConfig
 
 logger = get_logger(__name__)
+
+
+class _SSEReaderNoiseFilter(logging.Filter):
+    """downgrade idle-disconnect logger noise from mcp.client.sse to DEBUG"""
+
+    _IDLE_SIGNATURES = (
+        "peer closed connection without sending complete message body",
+        "incomplete chunked read",
+    )
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if record.levelno >= logging.ERROR:
+            msg = record.getMessage()
+            exc_text = ""
+
+            if record.exc_info and record.exc_info[1]:
+                exc_text = str(record.exc_info[1])
+
+            haystack = f"{msg}\n{exc_text}"
+            if any(sig in haystack for sig in self._IDLE_SIGNATURES):
+                record.levelno = logging.DEBUG
+                record.levelname = "DEBUG"
+                record.exc_info = None
+                record.exc_text = None
+
+        return True
+
+
+_sse_logger = logging.getLogger("mcp.client.sse")
+if not any(isinstance(f, _SSEReaderNoiseFilter) for f in _sse_logger.filters):
+    _sse_logger.addFilter(_SSEReaderNoiseFilter())
 
 
 class SSEAdapter(MCPTransportAdapter):
