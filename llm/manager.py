@@ -10,11 +10,13 @@ from optorch.llm.lifecycle.context_factory import LLMContextFactory
 from optorch.llm.base_client import BaseLLMClient
 from optorch.llm.responses import LLMResponse
 from optorch.llm.responses.streaming_response import StreamingLLMResponse
+from optorch.llm.capabilities.capability_context import CapabilityContext
 from optorch.state.base_state import BaseState
 
 if TYPE_CHECKING:
     from optorch.events.event_emitter import EventEmitter
     from optorch.controller.node_context import NodeContext
+    from optorch.llm.capabilities import LLMCapabilitiesManager
 
 logger = get_logger(__name__)
 
@@ -38,6 +40,7 @@ class LLMManager:
         self._executor = LLMLifecycleExecutor()
         self._config: Optional[Dict] = None
         self._llm_registry: Optional[LLMRegistryProtocol] = None
+        self._capabilities_manager: Optional['LLMCapabilitiesManager'] = None
         
         logger.debug("LLMManager initialized")
     
@@ -46,6 +49,9 @@ class LLMManager:
 
     def set_llm_registry(self, llm_registry: LLMRegistryProtocol) -> None:
         self._llm_registry = llm_registry
+    
+    def set_capabilities_manager(self, manager: 'LLMCapabilitiesManager') -> None:
+        self._capabilities_manager = manager
     
     def get_client(self, model: str) -> BaseLLMClient:
         if not self._llm_registry:
@@ -102,8 +108,12 @@ class LLMManager:
         config["invoke_kwargs"] = kwargs
 
         client = self.get_client(model)
+
         if not config.get("model") and client.model:
             config["model"] = client.model
+
+        if not config.get("provider"):
+            config["provider"] = client.provider
 
         if not event_emitter:
             from optorch.events import EventEmitter
@@ -120,6 +130,16 @@ class LLMManager:
             streaming=streaming,
             node_context=node_context
         )
+
+        if self._capabilities_manager:
+            node_caps = config.get("capabilities")
+            active = list(node_caps) if node_caps else self._capabilities_manager.get_active(model)
+            cap_params = self._capabilities_manager.produce(client.provider, client.model or "", active)
+
+            if cap_params:
+                ctx.config["invoke_kwargs"].update(cap_params)
+
+            ctx.capabilities = CapabilityContext(active=active, manager=self._capabilities_manager)
         return ctx, event_emitter
 
     async def invoke(
@@ -139,13 +159,17 @@ class LLMManager:
             budget=budget, event_emitter=event_emitter, node_context=node_context,
             context=context, streaming=False, **kwargs
         )
+
         try:
             context = await self._executor.execute(context, self._config)
+
             if not context.response:
                 raise RuntimeError("Lifecycle did not produce response")
+            
             return context.response
         except Exception as e:
             logger.error(f"LLM invocation failed: {e}", exc_info=True)
+
             from optorch.events import EventTypes
             event_emitter.emit(EventTypes.ERROR, {
                 "error": str(e),
@@ -154,6 +178,7 @@ class LLMManager:
                 "component": "llm",
                 "phase": "invoke"
             })
+            
             raise
 
     async def astream(

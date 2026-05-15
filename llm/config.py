@@ -63,6 +63,10 @@ class LLMProviderConfig(BaseModel):
         default="hard_stop",
         description="How streaming buffers chunks when budget exceeded (hard_stop, sentence, paragraph, min_tokens)"
     )
+    capabilities: List[str] = Field(
+        default_factory=list,
+        description="Active capability names for this profile (e.g. ['reasoning'])"
+    )
     
     model_config = {"extra": "allow"}
 

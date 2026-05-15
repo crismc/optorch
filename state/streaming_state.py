@@ -12,10 +12,16 @@ class StreamingState(BaseState):
     Combines regular state data with async streaming capabilities.
     """
     
-    def __init__(self, data: Optional[Dict[str, Any]] = None, stream: Optional[AsyncIterator] = None):
+    def __init__(
+        self,
+        data: Optional[Dict[str, Any]] = None,
+        stream: Optional[AsyncIterator] = None,
+        capability_events: Optional[AsyncIterator] = None,
+    ):
         super().__init__()
         self._data: Dict[str, Any] = data or {}
         self._stream = stream
+        self._capability_events = capability_events
         if 'messages' not in self._data:
             self._data['messages'] = []
         if 'entities' not in self._data:
@@ -26,7 +32,9 @@ class StreamingState(BaseState):
         """Get the streaming iterator"""
         return self._stream
     
-
+    @property
+    def capability_events(self) -> Optional[AsyncIterator]:
+        return self._capability_events
     
     def get(self, key: str, default: Any = None) -> Any:
         return self._data.get(key, default)
@@ -87,6 +95,10 @@ class StreamingState(BaseState):
     def set_stream(self, stream: AsyncIterator) -> 'StreamingState':
         """Set or update the stream"""
         self._stream = stream
+        return self
+    
+    def set_capability_events(self, events: Optional[AsyncIterator]) -> 'StreamingState':
+        self._capability_events = events
         return self
     
     def __getitem__(self, key: str) -> Any:

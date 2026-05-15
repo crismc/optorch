@@ -1,7 +1,8 @@
 """streaming response with async iterator"""
+import asyncio
 from optorch.logging import get_logger
 from decimal import Decimal
-from typing import Awaitable, List, Dict, Any, Optional, AsyncIterator, Callable, Type
+from typing import Awaitable, List, Dict, Any, Optional, AsyncIterator, Callable, Type, TYPE_CHECKING
 from optorch.llm.responses.llm_response import LLMResponse
 from optorch.llm.responses.helpers import (check_budget_exceeded, should_yield_chunk, emit_chunk_event)
 from optorch.llm.responses.helpers.provider_registry import get_extractor
@@ -10,9 +11,16 @@ from optorch.llm.budget import CompletionTypeRegistry, BaseCompletionType
 from optorch.llm.metrics import Usage
 from optorch.transformers.base_transformer import BaseTransformer
 from optorch.llm.lifecycle.context import LLMContext
+from optorch.llm.capabilities.capability_context import CapabilityContext
+from optorch.filters import FilterManager
 from optorch.utils import generate_id
 
+if TYPE_CHECKING:
+    from optorch.llm.capabilities import LLMCapabilitiesManager
+
 logger = get_logger(__name__)
+
+_CAPABILITY_END = object()
 
 class StreamingLLMResponse(LLMResponse):
     """response for streaming llm calls"""
@@ -28,7 +36,9 @@ class StreamingLLMResponse(LLMResponse):
         usage: Optional[Usage] = None,
         raw_response: Optional[Any] = None,
         metadata: Optional[Dict[str, Any]] = None,
-        pre_processed: bool = False
+        pre_processed: bool = False,
+        capabilities_manager: Optional["LLMCapabilitiesManager"] = None,
+        active_capabilities: Optional[List[str]] = None,
     ):
         self._model = model or "unknown"
         self._provider = provider
@@ -49,6 +59,16 @@ class StreamingLLMResponse(LLMResponse):
         self._tool_executor_callback: Optional[Callable] = None
         self._response_id = generate_id()
         self._lifecycle_resume_callback: Optional[Callable[[], Awaitable[None]]] = None
+        
+        self._capabilities: Optional[CapabilityContext] = (
+            CapabilityContext(active=list(active_capabilities), manager=capabilities_manager)
+            if capabilities_manager and active_capabilities
+            else None
+        )
+
+        self._capability_queue: "asyncio.Queue[Any]" = asyncio.Queue()
+        self._content_filter = FilterManager.for_target("content", provider)
+        self._capability_filter = FilterManager.for_target("capability_events", provider)
         
         if pre_processed:
             self._stream = stream
@@ -132,6 +152,9 @@ class StreamingLLMResponse(LLMResponse):
         """Store context reference for stream.consumed event"""
         self._context = context
     
+    def set_capabilities(self, ctx: Optional[CapabilityContext]) -> None:
+        self._capabilities = ctx
+    
     def set_lifecycle_resume(self, callback: Callable[[], Awaitable[None]]) -> None:
         """Inject lifecycle resume callback - called when stream consumed to continue deferred hooks"""
         self._lifecycle_resume_callback = callback
@@ -181,7 +204,14 @@ class StreamingLLMResponse(LLMResponse):
                 tool_calls = extractor.extract_tool_calls(chunk)
                 usage_data = extractor.extract_usage(chunk, self._model)
                 
+                if self._capabilities:
+                    for event in self._capabilities.manager.extract(self._provider, chunk, self._capabilities.active):
+                        event = self._capability_filter.apply(event)
+                        self._capability_queue.put_nowait(event)
+                
                 if content:
+                    content = self._content_filter.apply(content)
+                    
                     if not self._content:
                         self._content = ""
                     self._content += content
@@ -231,6 +261,20 @@ class StreamingLLMResponse(LLMResponse):
         except Exception as e:
             logger.error(f"stream processing error: {e}")
             raise
+        finally:
+            self._capability_queue.put_nowait(_CAPABILITY_END)
+    
+    @property
+    def capability_events(self) -> AsyncIterator[Dict[str, Any]]:
+        async def _drain() -> AsyncIterator[Dict[str, Any]]:
+            while True:
+                event = await self._capability_queue.get()
+                if event is _CAPABILITY_END:
+                    return
+                
+                yield event
+                
+        return _drain()
     
     async def apply_transformers(self, transformers: List[BaseTransformer], context: 'LLMContext') -> 'StreamingLLMResponse':
         """apply transformers within stream"""

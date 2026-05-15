@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from optorch.llm.responses import LLMResponse
     from optorch.events.event_emitter import EventEmitter
     from optorch.controller.node_context import NodeContext
+    from optorch.llm.capabilities import CapabilityContext
 
 
 @dataclass
@@ -37,6 +38,9 @@ class LLMContext:
     
     # Substates (controls which processors run)
     active_substates: Set[str] = field(default_factory=lambda: {"default"})
+    
+    # Active capability names
+    capabilities: Optional['CapabilityContext'] = None
     
     # Metadata (mutated by processors)
     metadata: Dict[str, Any] = field(default_factory=dict)  # Response metadata

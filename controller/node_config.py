@@ -60,6 +60,7 @@ class NodeConfig(BaseModel):
     llm: Optional[str] = None
     tools: List[str] = Field(default_factory=list)
     streaming: bool = False
+    capabilities: List[str] = Field(default_factory=list, description="override profile capabilities for this node")
     
     # routing
     routing: Optional[RoutingConfig] = Field(default_factory=RoutingConfig)

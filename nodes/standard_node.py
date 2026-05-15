@@ -39,7 +39,8 @@ class StandardNode(BaseNode):
             "transformers": self.config.get("transformers", []),
             "budget": self.config.get("budget"),
             "node_name": self.name,
-            "prompt_manager": self.prompt_manager
+            "prompt_manager": self.prompt_manager,
+            "capabilities": self.config.get("capabilities") or None,
         }
         
         if streaming:
@@ -53,7 +54,8 @@ class StandardNode(BaseNode):
                 node_context=self._node_context,
                 context=state._llm_context if hasattr(state, '_llm_context') else None
             )
-            return StateFactory.make_streaming(state, response.stream)
+            cap_events = getattr(response, 'capability_events', None)
+            return StateFactory.make_streaming(state, response.stream, capability_events=cap_events)
         else:
             response = await manager.invoke(
                 model=llm_name,

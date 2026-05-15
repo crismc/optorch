@@ -196,7 +196,7 @@ class LLMLifecycleExecutor:
                 logger.error(f"Processor {processor.__class__.__name__} failed in {hook}: {e}", exc_info=True)
                 raise
         
-        await context.wait_for_pending_tasks(timeout=3.0)
+        await context.wait_for_pending_tasks(timeout=10.0)
 
         for callback, args, kwargs in user_callbacks:
             try:

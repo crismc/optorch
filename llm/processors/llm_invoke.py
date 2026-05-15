@@ -1,9 +1,6 @@
 """Core LLM invocation processor - executes actual LLM call"""
 
 from optorch.logging import get_logger
-from typing import Any
-
-from optorch.llm.base_client import BaseLLMClient
 from optorch.llm.lifecycle.base_processor import BaseLLMProcessor
 from optorch.llm.lifecycle.hooks import LLMLifecycleHook
 from optorch.llm.lifecycle.context import LLMContext
@@ -64,8 +61,12 @@ class LLMInvokeProcessor(BaseLLMProcessor):
         
         if context.streaming:
             context.response = await context.client.astream(context, context.messages, **invoke_kwargs)
+            
             if context.response and hasattr(context.response, 'set_context'):
                 context.response.set_context(context)
+
+            if context.response and hasattr(context.response, 'set_capabilities'):
+                context.response.set_capabilities(context.capabilities)
         else:
             context.response = await context.client.invoke(context, context.messages, **invoke_kwargs)
         

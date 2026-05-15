@@ -41,6 +41,7 @@ class LlmPackageInitializer:
         )
         from optorch.llm.pricing.models import CostsConfig
         from optorch.llm.pricing import Pricing
+        from optorch.llm.capabilities import CapabilitiesConfig, CapabilitiesRegistry, LLMCapabilitiesManager
         from optorch.llm.initialization import LLMInitializer
         from optorch.llm.manager import LLMManager
         from optorch.llm.prompt_manager import PromptManager
@@ -65,10 +66,11 @@ class LlmPackageInitializer:
         config_manager.register_config("suggestions", SuggestionsConfig)
         config_manager.register_config("prompt_registration", PromptRegistrationConfig)
         config_manager.register_config("costs", CostsConfig)
+        config_manager.register_config("capabilities", CapabilitiesConfig)
         logger.debug("✅ LLM config models registered")
         
         if overrides:
-            for key in ["llm_clients", "llm", "llms", "prompts", "suggestions", "prompt_registration", "costs"]:
+            for key in ["llm_clients", "llm", "llms", "prompts", "suggestions", "prompt_registration", "costs", "capabilities"]:
                 merged = config_manager.merge_overrides(key, overrides, isolate=True)
                 optorch_config[key] = merged
         
@@ -86,14 +88,11 @@ class LlmPackageInitializer:
             container.llm_manager = manager
             return manager
         
-        client_dict = optorch_config.get("llm_clients", {})
-        client_config = LLMClientConfig(**client_dict) if client_dict else LLMClientConfig()
-        factory = ClientFactory(client_config.providers, client_config.module)
-        
-        llms_config = optorch_config.get("llms") or {}
-        llm_initializer = LLMInitializer(factory, container.llm_registry, llms_config, config_manager)
-        llm_initializer.initialize()
-        logger.debug("✅ LLM clients registered to registry")
+        caps_dict = optorch_config.get("capabilities", {})
+        caps_config = CapabilitiesConfig(**caps_dict) if caps_dict else CapabilitiesConfig()
+        caps_registry = CapabilitiesRegistry.from_config(caps_config)
+        caps_manager = LLMCapabilitiesManager(caps_registry)
+        logger.info(f"✅ Capabilities registered ({len(caps_registry.list_keys())} provider:cap bindings)")
         
         manager = LLMManager()
         llm_dict = optorch_config.get("llm", {})
@@ -101,8 +100,18 @@ class LlmPackageInitializer:
             llm_config = LLMConfig(**llm_dict)
             manager.set_config(llm_config.model_dump())
         manager.set_llm_registry(container.llm_registry)
+        manager.set_capabilities_manager(caps_manager)
         container.llm_manager = manager
         logger.info("✅ LLMManager initialized")
+        
+        client_dict = optorch_config.get("llm_clients", {})
+        client_config = LLMClientConfig(**client_dict) if client_dict else LLMClientConfig()
+        factory = ClientFactory(client_config.providers, client_config.module)
+        
+        llms_config = optorch_config.get("llms") or {}
+        llm_initializer = LLMInitializer(factory, container.llm_registry, llms_config, config_manager, capabilities_manager=caps_manager)
+        llm_initializer.initialize()
+        logger.debug("✅ LLM clients registered to registry")
         
         prompt_manager = PromptManager()
         prompts_dict = optorch_config.get("prompts", {})

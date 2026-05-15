@@ -109,7 +109,7 @@ class OllamaClient(BaseLLMClient):
                 "messages": filtered_messages,
                 "temperature": temperature,
                 "stream": True,
-                "stream_options": {"include_usage": True}
+                **kwargs,
             }
             
             if tools:

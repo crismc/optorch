@@ -150,7 +150,7 @@ class AnthropicClient(BaseLLMClient):
                 params["system"] = system
             if tools:
                 params["tools"] = self._convert_tools(tools)
-
+            
             response = await self.client.messages.create(**params)
 
             usage = Usage.create(
@@ -195,8 +195,10 @@ class AnthropicClient(BaseLLMClient):
                 "stream": True,
                 **kwargs,
             }
+
             if system:
                 params["system"] = system
+            
             if tools:
                 params["tools"] = self._convert_tools(tools)
 

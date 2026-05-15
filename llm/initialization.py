@@ -4,6 +4,7 @@ from typing import Dict, Any, List, Protocol, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from optorch.llm.llm_registry import LLMRegistry
+    from optorch.llm.capabilities import LLMCapabilitiesManager
     from optorch.config.manager import ConfigManager
 
 logger = get_logger(__name__)
@@ -32,7 +33,8 @@ class LLMInitializer:
         client_factory: LLMClientFactoryProtocol,
         llm_registry: 'LLMRegistry',
         llms_config: Dict[str, Any],
-        config_manager: 'ConfigManager'
+        config_manager: 'ConfigManager',
+        capabilities_manager: 'LLMCapabilitiesManager | None' = None
     ) -> None:
         """
         Args:
@@ -40,11 +42,13 @@ class LLMInitializer:
             llm_registry: LLMRegistry instance from LLMManager
             llms_config: LLM configurations from optorch.llms
             config_manager: ConfigManager for secret access
+            capabilities_manager: LLMCapabilitiesManager for registering profile capability activation
         """
         self.client_factory: LLMClientFactoryProtocol = client_factory
         self.llm_registry: 'LLMRegistry' = llm_registry
         self.llms_config: Dict[str, Any] = llms_config or {}
         self.config_manager: 'ConfigManager' = config_manager
+        self.capabilities_manager: 'LLMCapabilitiesManager | None' = capabilities_manager
     
     def initialize(self) -> None:
         """
@@ -143,6 +147,10 @@ class LLMInitializer:
         for attr in INSTANCE_ATTRS:
             if attr in config:
                 setattr(client, attr, config[attr])
+        
+        caps = config.get("capabilities") or []
+        if caps and self.capabilities_manager:
+            self.capabilities_manager.register_profile(name, caps)
         
         self.llm_registry.register(name, client)
         logger.debug(f"Registered client '{name}': {provider}/{config.get('model')}")

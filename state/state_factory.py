@@ -25,13 +25,18 @@ class StateFactory:
             return State(data)
     
     @staticmethod
-    def from_state(existing_state: BaseState, stream: Optional[AsyncIterator] = None) -> BaseState:
+    def from_state(
+        existing_state: BaseState,
+        stream: Optional[AsyncIterator] = None,
+        capability_events: Optional[AsyncIterator] = None,
+    ) -> BaseState:
         """
         Convert existing state to streaming state or copy to new state.
         
         Args:
             existing_state: Existing state to convert
             stream: Optional async iterator for streaming
+            capability_events: Optional async iterator of capability events
             
         Returns:
             New state with existing data, streaming if stream provided
@@ -42,26 +47,33 @@ class StateFactory:
             data = existing_state.to_dict()
         
         if stream is not None:
-            return StreamingState(data, stream)
+            return StreamingState(data, stream, capability_events=capability_events)
         else:
             return cast(State, State(data))
     
     @staticmethod
-    def make_streaming(existing_state: BaseState, stream: AsyncIterator) -> StreamingState:
+    def make_streaming(
+        existing_state: BaseState,
+        stream: AsyncIterator,
+        capability_events: Optional[AsyncIterator] = None,
+    ) -> StreamingState:
         """
         Convert any state to streaming state.
         
         Args:
             existing_state: State to convert
             stream: Async iterator for streaming
+            capability_events: Optional async iterator of capability events
             
         Returns:
             StreamingState with existing data and stream
         """
         if isinstance(existing_state, StreamingState):
-            return existing_state.set_stream(stream)
+            existing_state.set_stream(stream)
+            existing_state.set_capability_events(capability_events)
+            return existing_state
         
-        return cast(StreamingState, StateFactory.from_state(existing_state, stream))
+        return cast(StreamingState, StateFactory.from_state(existing_state, stream, capability_events=capability_events))
     
     @staticmethod
     def make_static(existing_state: BaseState) -> State:

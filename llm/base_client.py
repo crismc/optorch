@@ -158,6 +158,10 @@ class BaseLLMClient(ABC):
     def _get_provider_name(self) -> str:
         pass
     
+    @property
+    def provider(self) -> str:
+        return self._get_provider_name()
+    
     def _estimate_tokens(self, messages: List[Dict[str, Any]]) -> int:
         """Rough token estimation (4 chars = 1 token)"""
         text = str(messages)

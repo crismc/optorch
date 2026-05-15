@@ -14,6 +14,11 @@ class CostsConfig(BaseModel):
     currency: str = Field(default="USD", description="Currency for all pricing")
     pricing: Dict[str, ModelPricingConfig] = Field(
         default={
+            "o3": ModelPricingConfig(input=10.00, output=40.00),
+            "o4-mini": ModelPricingConfig(input=1.10, output=4.40),
+            "o3-mini": ModelPricingConfig(input=1.10, output=4.40),
+            "o1": ModelPricingConfig(input=15.00, output=60.00),
+            "o1-mini": ModelPricingConfig(input=3.00, output=12.00),
             "gpt-4o": ModelPricingConfig(input=2.50, output=10.00),
             "gpt-4o-mini": ModelPricingConfig(input=0.15, output=0.60),
             "gpt-4-turbo": ModelPricingConfig(input=10.00, output=30.00),
