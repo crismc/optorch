@@ -4,7 +4,8 @@ from optorch.llm.capabilities.capability import Capability
 class AnthropicReasoning(Capability):   
     provider: ClassVar[str] = "anthropic"
     name: ClassVar[str] = "reasoning"
-    
+    accumulation_key: ClassVar[str] = "reasoning"
+
     DEFAULT_BUDGET_TOKENS: ClassVar[int] = 1024
 
     def __init__(self, event_type: str, budget_tokens: Optional[int] = None) -> None:

@@ -9,3 +9,4 @@ class EventTypes:
     SUGGESTIONS = "suggestions"
     ERROR = "error"
     CONFIG = "config"
+    SESSION = "session"

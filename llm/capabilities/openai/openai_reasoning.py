@@ -6,13 +6,15 @@ class OpenAIReasoning(Capability):
     name: ClassVar[str] = "reasoning"
     
     DEFAULT_EFFORT: ClassVar[str] = "medium"
+    DEFAULT_SUMMARY: ClassVar[str] = "detailed"
 
-    def __init__(self, event_type: str, effort: Optional[str] = None) -> None:
+    def __init__(self, event_type: str, effort: Optional[str] = None, summary: Optional[str] = None) -> None:
         super().__init__(event_type)
         self.effort = effort or self.DEFAULT_EFFORT
+        self.summary = summary or self.DEFAULT_SUMMARY
 
     def contribute(self, model: str) -> Optional[Dict[str, Any]]:
-        return {"reasoning": {"effort": self.effort, "summary": "auto"}}
+        return {"reasoning": {"effort": self.effort, "summary": self.summary}}
 
     def extract(self, chunk: Any) -> Optional[Dict[str, Any]]:
         if getattr(chunk, "type", None) == "response.output_item.added":

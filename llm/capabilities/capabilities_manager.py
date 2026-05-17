@@ -73,6 +73,8 @@ class LLMCapabilitiesManager:
             event = cap.extract(chunk)
 
             if event:
+                if cap.accumulation_key:
+                    event["_accumulation_key"] = cap.accumulation_key
                 events.append(event)
 
         return events

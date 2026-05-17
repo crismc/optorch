@@ -81,7 +81,12 @@ class HistoryLayerConfig(BaseModel):
 class HistoryConfig(BaseModel):
     """Multi-tier history config"""
     model_config = {"extra": "allow"}
-    
+
+    capture_conversations: bool = Field(
+        default=True,
+        description="persist conversations to storage - disable for public/anonymous deployments or privacy requirements"
+    )
+
     cache_enabled: bool = Field(
         default=True,
         description="Enable caching for history context"

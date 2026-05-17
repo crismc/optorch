@@ -7,7 +7,6 @@ from optorch.cache import CacheManager
 from optorch.history.config import HistoryConfig, HistoryLayerConfig
 from optorch.history.filters import FilterRegistry, CompositeFilter
 from optorch.history.constants import MEMORY_TYPES, STORAGE_TYPES, SEARCH_TYPES, FILTER_TYPES
-from optorch.events import emits, EventTypes
 from optorch.errors import ConfigurationError
 
 if TYPE_CHECKING:

@@ -24,7 +24,7 @@ def _default_capabilities() -> List[CapabilityConfig]:
                     "provider": "openai",
                     "class": "optorch.llm.capabilities.openai.openai_reasoning.OpenAIReasoning",
                     "model_patterns": ["o1", "o3", "o4", "gpt-5"],
-                    "params": {"effort": "medium"},
+                    "params": {"effort": "medium", "summary": "detailed"},
                 }),
                 CapabilityProviderConfig.model_validate({
                     "provider": "anthropic",

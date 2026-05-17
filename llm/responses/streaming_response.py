@@ -205,7 +205,7 @@ class StreamingLLMResponse(LLMResponse):
                 usage_data = extractor.extract_usage(chunk, self._model)
                 
                 if self._capabilities:
-                    for event in self._capabilities.manager.extract(self._provider, chunk, self._capabilities.active):
+                    for event in self._capabilities.extract(self._provider, chunk):
                         event = self._capability_filter.apply(event)
                         self._capability_queue.put_nowait(event)
                 
@@ -265,6 +265,14 @@ class StreamingLLMResponse(LLMResponse):
             self._capability_queue.put_nowait(_CAPABILITY_END)
     
     @property
+    def capabilities(self) -> Optional[CapabilityContext]:
+        return self._capabilities
+
+    @property
+    def model(self) -> str:
+        return self._model
+
+    @property
     def capability_events(self) -> AsyncIterator[Dict[str, Any]]:
         async def _drain() -> AsyncIterator[Dict[str, Any]]:
             while True:
@@ -273,7 +281,7 @@ class StreamingLLMResponse(LLMResponse):
                     return
                 
                 yield event
-                
+
         return _drain()
     
     async def apply_transformers(self, transformers: List[BaseTransformer], context: 'LLMContext') -> 'StreamingLLMResponse':

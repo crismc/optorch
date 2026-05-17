@@ -71,10 +71,20 @@ class StoragePackageInitializer:
             logger.debug("storage manager attached to container")
             
             if hasattr(container, 'event_emitter') and container.event_emitter:
-                from optorch.storage.listener import StorageListener
-                
-                storage_listener = StorageListener(manager)
+                from optorch.storage.listeners.event_listener import EventListener
+                from optorch.storage.listeners.conversation_listener import ConversationListener
+
+                storage_listener = EventListener(manager)
                 container.event_emitter.listeners.add(storage_listener, priority=40, tags={"storage"})
+
+                raw_history_config = config.get("history") or {}
+                capture_conversations = raw_history_config.get("capture_conversations", True)
+                if capture_conversations:
+                    conversation_listener = ConversationListener(manager, config_manager, container.session_manager)
+                    container.event_emitter.listeners.add(conversation_listener, priority=50, tags={"conversations"})
+                else:
+                    logger.info("conversation capture disabled — skipping ConversationListener")
+
                 logger.debug("storage listener registered to singleton emitter")
         
         logger.info(f"✅ storage package initialized: {storage_config.store} (lazy load)")
